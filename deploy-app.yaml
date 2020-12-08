@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-processor
+  labels:
+    app: order-processor
+spec:
+  selector:
+    matchLabels:
+      app: order-processor
+  template:
+    metadata:
+      labels:
+        app: order-processor
+    spec:
+      imagePullSecrets:
+         - name: acr-secret
+      containers:
+      - name: order-processor
+        image: acraccess.azurecr.io/servicebus-queue:latest
+        imagePullPolicy: Always
+        env:
+        # servicebus settings
+        - name: AZURE_SERVICEBUS_CONNECTION-STRING
+          valueFrom:
+            secretKeyRef:
+             name: secrets-order-consumer
+             key: servicebus-connectionstring
+        - name: AZURE_SERVICEBUS_QUEUE-NAME
+          value: orders
+
+        # app insights https://docs.microsoft.com/en-us/azure/azure-monitor/app/java-standalone-config
+        - name: APPLICATIONINSIGHTS_ROLE_NAME
+          value: servicebus_reader
+
+        - name: APPLICATIONINSIGHTS_ROLE_INSTANCE
+          valueFrom:
+             fieldRef:
+               fieldPath: metadata.name
+        - name: APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE
+          value: "80"
+
+        - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: secrets-appinsights
+              key: appinsights-connectionstring
+
+        # mysql settings
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:mysql://kedatests.mysql.database.azure.com:3306/demo?serverTimezone=UTC&useSSL=true&requireSSL=false
+        - name: SPRING_DATASOURCE_USERNAME
+          value: mysqlAdmin@kedatests
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+             secretKeyRef:
+                name: secrets-mysql
+                key: mysql-password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secrets-order-consumer
+  labels:
+    app: order-processor
+data:
+  servicebus-connectionstring: <<base64 servicebus connectionstring>>
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secrets-appinsights
+  labels:
+    app: order-processor
+data:
+  appinsights-connectionstring: <base64 application insights connectionstring>
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secrets-mysql
+  labels:
+    app: order-processor
+data:
+  mysql-password: <base64 mysql password>

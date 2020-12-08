@@ -1,0 +1,38 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: trigger-auth-service-bus-orders
+spec:
+  secretTargetRef:
+  - parameter: connection
+    name: secrets-order-management
+    key: servicebus-order-management-connectionstring
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secrets-order-management
+  labels:
+    app: order-processor
+data:
+  servicebus-order-management-connectionstring: <base64 servicebus connectionstring>
+---
+apiVersion: keda.sh/v1alpha1 
+kind: ScaledObject
+metadata:
+  name: order-processor-scaler
+spec:
+  scaleTargetRef:
+    name: order-processor
+  minReplicaCount: 0 #Change to define how many minimum replicas you want
+  maxReplicaCount: 10
+  pollingInterval: 10   # Optional. Default: 30 seconds
+  cooldownPeriod:  180  # Optional. Default: 300 seconds
+  triggers:
+  - type: azure-servicebus
+    metadata:
+      namespace: orderskeda 
+      queueName: orders
+      messageCount: '5'
+    authenticationRef:
+      name: trigger-auth-service-bus-orders
